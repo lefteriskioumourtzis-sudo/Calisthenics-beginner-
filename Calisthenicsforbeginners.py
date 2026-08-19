@@ -3,7 +3,6 @@ import random
 import pandas as pd
 from datetime import datetime
 import gspread
-from google.oauth2.service_account import Credentials
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="Pro Calisthenics", page_icon="⚡", layout="centered")
@@ -111,15 +110,10 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS (ΜΕΣΩ SERVICE ACCOUNT) ---
+# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS (Direct Public URL) ---
 def get_gsheet_worksheet():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], 
-        scopes=scopes
-    )
-    gc = gspread.authorize(creds)
-    url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    url = "https://docs.google.com/spreadsheets/d/1KeifVGr9lZzCleK_2ZzWbusmhXfL3n9PxyeBvmfLb9I/edit?usp=drivesdk"
+    gc = gspread.public_connector()
     sh = gc.open_by_url(url)
     return sh.get_worksheet(0)
 
@@ -158,7 +152,7 @@ i18n = {
 t = i18n[lang]
 st.title(t["title"])
 
-# --- DATABASE (Διαχωρισμός Home vs Park) ---
+# --- DATABASE ---
 exercises_db = {
     "🏠 Σπίτι (Bodyweight)": {
         1: {
