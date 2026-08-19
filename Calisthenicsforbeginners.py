@@ -2,7 +2,7 @@ import streamlit as st
 import random
 import pandas as pd
 from datetime import datetime
-import gspread
+from streamlit_gsheets import GSheetsConnection
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="Pro Calisthenics", page_icon="⚡", layout="centered")
@@ -110,12 +110,8 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS (Direct Public URL) ---
-def get_gsheet_worksheet():
-    url = "https://docs.google.com/spreadsheets/d/1KeifVGr9lZzCleK_2ZzWbusmhXfL3n9PxyeBvmfLb9I/edit?usp=drivesdk"
-    gc = gspread.public_connector()
-    sh = gc.open_by_url(url)
-    return sh.get_worksheet(0)
+# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS VIA STREAMLIT CONNECTION ---
+GSHEET_URL = "https://docs.google.com/spreadsheets/d/1KeifVGr9lZzCleK_2ZzWbusmhXfL3n9PxyeBvmfLb9I/edit?usp=drivesdk"
 
 # --- ΓΛΩΣΣΙΚΗ ΒΑΣΗ ---
 i18n = {
@@ -275,20 +271,26 @@ if st.session_state.current_routine:
             st.warning(t["enter_name"])
         else:
             try:
-                ws = get_gsheet_worksheet()
-                if len(ws.get_all_values()) == 0:
-                    ws.append_row(["Date", "User", "Location", "Level", "Reps/Hold", "Rest Time (s)", "Routine"])
+                conn = st.connection("gsheets", type=GSheetsConnection)
                 
-                row = [
-                    datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    username,
-                    location,
-                    str(level),
-                    f"{reps} reps / {hold_t}s hold",
-                    str(rest_t),
-                    ", ".join(st.session_state.current_routine)
-                ]
-                ws.append_row(row)
+                try:
+                    existing_df = conn.read(spreadsheet=GSHEET_URL, ttl="0")
+                except Exception:
+                    existing_df = pd.DataFrame(columns=["Date", "User", "Location", "Level", "Reps/Hold", "Rest Time (s)", "Routine"])
+                
+                new_data = pd.DataFrame([{
+                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "User": username,
+                    "Location": location,
+                    "Level": str(level),
+                    "Reps/Hold": f"{reps} reps / {hold_t}s hold",
+                    "Rest Time (s)": str(rest_t),
+                    "Routine": ", ".join(st.session_state.current_routine)
+                }])
+                
+                updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+                conn.update(spreadsheet=GSHEET_URL, data=updated_df)
+                
                 st.success(t["success_save"])
             except Exception as e:
                 st.error(f"Error: {e}")
@@ -298,10 +300,9 @@ st.divider()
 st.subheader(t["history"])
 
 try:
-    ws = get_gsheet_worksheet()
-    records = ws.get_all_records()
-    if records:
-        df = pd.DataFrame(records)
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(spreadsheet=GSHEET_URL, ttl="0")
+    if not df.empty:
         filter_user = st.checkbox("Show only my workouts / Εμφάνιση μόνο των δικών μου")
         if filter_user and username:
             df = df[df["User"] == username]
