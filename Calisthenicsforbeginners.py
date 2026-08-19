@@ -3,6 +3,7 @@ import random
 import pandas as pd
 from datetime import datetime
 import gspread
+from google.oauth2.service_account import Credentials
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="Pro Calisthenics", page_icon="⚡", layout="centered")
@@ -110,10 +111,15 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
+# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS (ΜΕΣΩ SERVICE ACCOUNT) ---
 def get_gsheet_worksheet():
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], 
+        scopes=scopes
+    )
+    gc = gspread.authorize(creds)
     url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-    gc = gspread.public_connector()
     sh = gc.open_by_url(url)
     return sh.get_worksheet(0)
 
@@ -222,11 +228,10 @@ with col1:
 with col2:
     reps = st.number_input(t["reps"], min_value=1, max_value=100, value=10)
 
-# --- ENGINE (Με φιλτράρισμα Τοποθεσίας & Επιπέδου) ---
+# --- ENGINE ---
 if st.button(t["generate"]):
     loc_db = exercises_db[location]
     
-    # Βρίσκουμε το πλησιέστερο διαθέσιμο επίπεδο στη βάση
     available_levels = sorted(loc_db.keys())
     db_level = max([k for k in available_levels if k <= level], default=min(available_levels))
     
@@ -240,7 +245,6 @@ if st.button(t["generate"]):
     ]
     st.session_state.current_routine = list(dict.fromkeys(routine))
     
-    # Αυτόματος υπολογισμός χρόνου
     rest_seconds = max(45, 120 - (level * 5))
     hold_seconds = 15 + (level * 3)
     
@@ -312,3 +316,6 @@ try:
         st.write(t["no_history"])
 except Exception:
     st.write(t["no_history"])
+
+# --- MEDICAL DISCLAIMER ---
+st.caption("⚠️ **Αποποίηση Ευθύνης / Disclaimer:** Η εφαρμογή παρέχει προτεινόμενα προγράμματα γυμναστικής για ενημερωτικούς σκοπούς. Συμβουλευτείτε έναν γιατρό ή επαγγελματία γυμναστή πριν ξεκινήσετε οποιοδήποτε πρόγραμμα.")
