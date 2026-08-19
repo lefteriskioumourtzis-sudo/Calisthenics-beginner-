@@ -7,9 +7,10 @@ import gspread
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="Pro Calisthenics", page_icon="⚡", layout="centered")
 
-# --- SIDEBAR: ΕΠΙΛΟΓΗ ΘΕΜΑΤΟΣ & ΓΛΩΣΣΑΣ ---
-st.sidebar.title("🎨 Προσαρμογή")
-theme = st.sidebar.selectbox("Επίλεξε Θέμα Design", ["Cyberpunk Neon", "Sunset Gold", "Matrix Green", "Ocean Breeze"])
+# --- SIDEBAR: ΕΠΙΛΟΓΕΣ DESIGN, ΓΛΩΣΣΑΣ & ΤΟΠΟΘΕΣΙΑΣ ---
+st.sidebar.title("⚙️ Ρυθμίσεις / Settings")
+location = st.sidebar.radio("📍 Τοποθεσία Προπόνησης", ["🏠 Σπίτι (Bodyweight)", "🌳 Πάρκο (Full Equipment)"])
+theme = st.sidebar.selectbox("🎨 Θέμα Design", ["Cyberpunk Neon", "Sunset Gold", "Matrix Green", "Ocean Breeze"])
 lang = st.sidebar.selectbox("🌐 Language / Γλώσσα", ["EL", "EN"])
 
 # --- ΔΥΝΑΜΙΚΑ CSS ΘΕΜΑΤΑ ---
@@ -94,7 +95,6 @@ themes_css = {
     """
 }
 
-# Εφαρμογή του επιλεγμένου CSS + animation
 st.markdown(f"""
     <style>
     @keyframes gradient {{
@@ -120,7 +120,7 @@ def get_gsheet_worksheet():
 # --- ΓΛΩΣΣΙΚΗ ΒΑΣΗ ---
 i18n = {
     "EL": {
-        "title": "⚡ Pro Calisthenics Routine",
+        "title": "⚡ Pro Calisthenics Generator",
         "username": "👤 Όνομα Αθλητή",
         "level": "🎯 Επίπεδο Δυσκολίας (1-10)",
         "reps": "🔢 Επαναλήψεις ανά σετ",
@@ -134,7 +134,7 @@ i18n = {
         "success_save": "Η προπόνηση αποθηκεύτηκε επιτυχώς!"
     },
     "EN": {
-        "title": "⚡ Pro Calisthenics Routine",
+        "title": "⚡ Pro Calisthenics Generator",
         "username": "👤 Athlete Name",
         "level": "🎯 Difficulty Level (1-10)",
         "reps": "🔢 Reps per set",
@@ -152,67 +152,59 @@ i18n = {
 t = i18n[lang]
 st.title(t["title"])
 
-# --- DATABASE (10 Επίπεδα) ---
+# --- DATABASE (Διαχωρισμός Home vs Park) ---
 exercises_db = {
-    1: {
-        "Push": ["Wall Push-ups", "Knee Push-ups", "Wall Sit", "Plank Shoulder Taps", "Incline Push-ups"],
-        "Pull": ["Door Rows", "Towel Rows", "Dead Hang", "Wall Angels", "Scapular Pulls"],
-        "Legs": ["Bodyweight Squats", "Lunges", "Glute Bridges", "Calf Raises", "Side Lunges"],
-        "Core": ["Deadbug", "Plank (on knees)", "Bird-Dog", "Crunch", "Pelvic Tilt"]
+    "🏠 Σπίτι (Bodyweight)": {
+        1: {
+            "Push": ["Wall Push-ups", "Knee Push-ups", "Wall Sit", "Plank Shoulder Taps", "Incline Push-ups (Chair)"],
+            "Pull": ["Door Rows", "Towel Rows", "Wall Angels", "Prone Cobra", "Shadow Boxing"],
+            "Legs": ["Bodyweight Squats", "Lunges", "Glute Bridges", "Calf Raises", "Side Lunges"],
+            "Core": ["Deadbug", "Plank (on knees)", "Bird-Dog", "Crunch", "Pelvic Tilt"]
+        },
+        3: {
+            "Push": ["Standard Push-ups", "Wide Push-ups", "Pike Push-ups", "Diamond Push-ups", "Decline Push-ups"],
+            "Pull": ["Doorframe Rows", "Towel Door Rows", "Superman Holds", "Reverse Snow Angels", "Prone Y-Raises"],
+            "Legs": ["Jump Squats", "Bulgarian Split Squats (Chair)", "Pistol Squat Prep", "Calf Raises", "Wall Sit"],
+            "Core": ["Leg Raises", "Plank", "Hollow Body Hold", "Side Plank", "Russian Twists"]
+        },
+        5: {
+            "Push": ["Pike Push-ups (Elevated)", "Archer Push-ups", "Pseudo Planche Push-ups", "Handstand Hold (Wall)", "Diamond Push-ups"],
+            "Pull": ["Towel Door Rows (Single Arm)", "Superman Pulls", "Back Bridge Holds", "L-Sit (Floor)", "Reverse Plank"],
+            "Legs": ["Bulgarian Split Squats", "Jumping Lunges", "Pistol Squats (Chair Assisted)", "Single Leg Glute Bridges", "Wall Sit"],
+            "Core": ["Hanging Knee Raises", "Plank (Weighted/Backpack)", "Hollow Body Hold", "Dragon Flag Prep", "V-Ups"]
+        },
+        10: {
+            "Push": ["One Arm Push-ups", "Handstand Push-ups (Wall)", "Planche Push-ups (Tuck)", "Wall HSPU", "Pseudo Planche"],
+            "Pull": ["Doorframe One Arm Rows", "Advanced Back Bridge", "Floor L-Sit to Straddle", "Dragon Flag Holds (Floor)", "Prone Cobra Holds"],
+            "Legs": ["Pistol Squats", "Shrimp Squats", "Sissy Squats", "Dragon Pistol Squats", "Jump Lunges"],
+            "Core": ["Dragon Flags (Floor)", "V-Sit Holds", "Strict Hollow Body", "Ab Wheel Rollouts", "Floor L-Sit"]
+        }
     },
-    2: {
-        "Push": ["Standard Push-ups", "Pike Push-ups (knees)", "Diamond Push-ups (knees)", "Plank to Push-up", "Bench Dips"],
-        "Pull": ["Australian Rows (low)", "Chin-up Negatives", "Towel Pull-ups", "Dead Hangs (active)", "Ring Rows (easy)"],
-        "Legs": ["Split Squats", "Reverse Lunges", "Sumo Squats", "Step-ups", "Frog Squats"],
-        "Core": ["Leg Raises (flat)", "Plank (standard)", "Mountain Climbers", "Bicycle Crunches", "Side Plank"]
-    },
-    3: {
-        "Push": ["Standard Push-ups", "Wide Push-ups", "Pike Push-ups", "Diamond Push-ups", "Decline Push-ups"],
-        "Pull": ["Australian Rows", "Pull-up Negatives", "Chin-up Negatives", "Scapular Pull-ups", "Ring Rows"],
-        "Legs": ["Jump Squats", "Bulgarian Split Squats", "Pistol Squat Prep", "Calf Raises", "Box Jumps"],
-        "Core": ["Leg Raises", "Plank", "Hollow Body Hold", "Side Plank", "Russian Twists"]
-    },
-    4: {
-        "Push": ["Dips (bench)", "Pike Push-ups", "Archer Push-ups", "Pseudo Planche", "Incline Dips"],
-        "Pull": ["Pull-ups (assisted)", "Chin-ups (assisted)", "Australian Rows (hard)", "L-sit Hang", "Ring Rows"],
-        "Legs": ["Bulgarian Split Squats", "Jumping Lunges", "Sumo Squats", "Box Jumps", "Side Lunge"],
-        "Core": ["Hanging Knee Raises", "Plank (weighted)", "Hollow Body Hold", "Flutter Kicks", "V-Ups"]
-    },
-    5: {
-        "Push": ["Dips (parallel bars)", "Pike Push-ups (elevated)", "Archer Push-ups", "Handstand Hold (wall)", "Pseudo Planche"],
-        "Pull": ["Pull-ups", "Chin-ups", "L-sit Hang", "Tuck Front Lever", "Negative Muscle-up"],
-        "Legs": ["Jumping Lunges", "Bulgarian Split Squats", "Pistol Squat Prep", "Pistol Squats", "Box Jumps"],
-        "Core": ["Hanging Leg Raises", "Plank (weighted)", "Hollow Body Hold", "Dragon Flag (prep)", "V-Ups"]
-    },
-    6: {
-        "Push": ["Dips", "Handstand Push-up (wall)", "Archer Push-ups", "Pseudo Planche", "Handstand Hold"],
-        "Pull": ["Pull-ups", "Chin-ups", "Negative Muscle-up", "Tuck Front Lever", "Chin-up Holds"],
-        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Box Jumps", "Sprints"],
-        "Core": ["Hanging Leg Raises", "Dragon Flag (prep)", "Hollow Body Hold", "Side Plank", "V-Ups"]
-    },
-    7: {
-        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Handstand Hold"],
-        "Pull": ["Pull-ups", "Chin-ups", "Negative Muscle-up", "Tuck Front Lever", "Chin-up Holds"],
-        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Box Jumps", "Sprints"],
-        "Core": ["Hanging Leg Raises", "Dragon Flag", "Hollow Body Hold", "Side Plank", "V-Ups"]
-    },
-    8: {
-        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Handstand Hold"],
-        "Pull": ["Pull-ups", "Chin-ups", "Negative Muscle-up", "Tuck Front Lever", "Chin-up Holds"],
-        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Box Jumps", "Sprints"],
-        "Core": ["Hanging Leg Raises", "Dragon Flag", "Hollow Body Hold", "Side Plank", "V-Ups"]
-    },
-    9: {
-        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Handstand Hold"],
-        "Pull": ["Pull-ups", "Chin-ups", "Negative Muscle-up", "Tuck Front Lever", "Chin-up Holds"],
-        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Box Jumps", "Sprints"],
-        "Core": ["Hanging Leg Raises", "Dragon Flag", "Hollow Body Hold", "Side Plank", "V-Ups"]
-    },
-    10: {
-        "Push": ["Muscle-ups (push phase)", "One Arm Push-ups", "Planche Push-ups", "Handstand Push-ups", "Full Planche Hold"],
-        "Pull": ["Muscle-ups", "Front Lever Pull-ups", "One Arm Pull-ups", "Weighted Pull-ups", "Human Flag"],
-        "Legs": ["Pistol Squats (weighted)", "Jump Lunges (explosive)", "Sissy Squats", "Dragon Pistol Squat", "Sprints"],
-        "Core": ["Dragon Flags (strict)", "Front Lever Holds", "Toes-to-Bar", "Human Flag", "Ab Wheel Rollouts"]
+    "🌳 Πάρκο (Full Equipment)": {
+        1: {
+            "Push": ["Incline Push-ups (Low Bar)", "Bench Dips", "Plank Shoulder Taps", "Wall Sit", "Knee Push-ups"],
+            "Pull": ["Australian Rows (High Bar)", "Dead Hang", "Scapular Pulls", "Ring Holds", "Band Pull-aparts"],
+            "Legs": ["Bodyweight Squats", "Box Step-ups", "Lunges", "Calf Raises", "Glute Bridges"],
+            "Core": ["Hanging Knee Holds", "Plank", "Bird-Dog", "Deadbug", "Side Plank"]
+        },
+        3: {
+            "Push": ["Standard Push-ups", "Dips (Parallel Bars)", "Pike Push-ups", "Explosive Push-ups", "Decline Push-ups"],
+            "Pull": ["Australian Rows (Low Bar)", "Pull-up Negatives", "Chin-up Negatives", "Ring Rows", "Dead Hangs"],
+            "Legs": ["Jump Squats", "Bulgarian Split Squats", "Box Jumps", "Pistol Squat Prep", "Calf Raises"],
+            "Core": ["Hanging Knee Raises", "Plank", "Hollow Body Hold", "Side Plank", "Russian Twists"]
+        },
+        5: {
+            "Push": ["Dips (Parallel Bars)", "Elevated Pike Push-ups", "Archer Push-ups", "Handstand Hold", "Straight Bar Dips"],
+            "Pull": ["Strict Pull-ups", "Chin-ups", "L-Sit Hang", "Tuck Front Lever Hold", "Ring Pull-ups"],
+            "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "High Box Jumps", "Sprints"],
+            "Core": ["Hanging Leg Raises", "Tuck Dragon Flag", "L-Sit on Dip Bars", "Toes to Bar (Prep)", "V-Ups"]
+        },
+        10: {
+            "Push": ["Muscle-ups (Push Phase)", "Handstand Push-ups (Free)", "Full Planche Push-ups", "Weighted Dips", "90 Degree Push-ups"],
+            "Pull": ["Bar Muscle-ups", "Ring Muscle-ups", "Front Lever Pull-ups", "One Arm Pull-ups", "Human Flag"],
+            "Legs": ["Pistol Squats (Weighted)", "Explosive Box Jumps", "Shrimp Squats", "Sprints", "Dragon Pistol Squats"],
+            "Core": ["Dragon Flags (Strict)", "Front Lever Holds", "Toes-to-Bar", "Human Flag Holds", "Bar L-Sit to RDL"]
+        }
     }
 }
 
@@ -230,10 +222,15 @@ with col1:
 with col2:
     reps = st.number_input(t["reps"], min_value=1, max_value=100, value=10)
 
-# --- ENGINE ---
+# --- ENGINE (Με φιλτράρισμα Τοποθεσίας & Επιπέδου) ---
 if st.button(t["generate"]):
-    db_level = level if level in exercises_db else max([k for k in exercises_db.keys() if k <= level])
-    current_pool = exercises_db[db_level]
+    loc_db = exercises_db[location]
+    
+    # Βρίσκουμε το πλησιέστερο διαθέσιμο επίπεδο στη βάση
+    available_levels = sorted(loc_db.keys())
+    db_level = max([k for k in available_levels if k <= level], default=min(available_levels))
+    
+    current_pool = loc_db[db_level]
     
     routine = [
         random.choice(current_pool["Push"]),
@@ -254,7 +251,7 @@ if st.button(t["generate"]):
 
 # --- DISPLAY CARDS ---
 if st.session_state.current_routine:
-    st.subheader(t["plan"])
+    st.subheader(f"{t['plan']} ({location})")
     
     rest_t = st.session_state.calculated_time.get("rest", 60)
     hold_t = st.session_state.calculated_time.get("hold", 20)
@@ -262,7 +259,7 @@ if st.session_state.current_routine:
     st.info(f"💡 {t['rest']}: **{rest_t}s** ανάμεσα στα σετ")
 
     for idx, ex in enumerate(st.session_state.current_routine, 1):
-        is_hold = any(word in ex.lower() for word in ["hold", "plank", "hang", "flag", "sit"])
+        is_hold = any(word in ex.lower() for word in ["hold", "plank", "hang", "flag", "sit", "bridge"])
         metric = f"{hold_t} sec hold" if is_hold else f"{reps} reps"
         
         st.markdown(f"""
@@ -282,11 +279,12 @@ if st.session_state.current_routine:
             try:
                 ws = get_gsheet_worksheet()
                 if len(ws.get_all_values()) == 0:
-                    ws.append_row(["Date", "User", "Level", "Reps/Hold", "Rest Time (s)", "Routine"])
+                    ws.append_row(["Date", "User", "Location", "Level", "Reps/Hold", "Rest Time (s)", "Routine"])
                 
                 row = [
                     datetime.now().strftime("%Y-%m-%d %H:%M"),
                     username,
+                    location,
                     str(level),
                     f"{reps} reps / {hold_t}s hold",
                     str(rest_t),
@@ -313,4 +311,4 @@ try:
     else:
         st.write(t["no_history"])
 except Exception:
-    st.write(t["no_history"])          
+    st.write(t["no_history"])
