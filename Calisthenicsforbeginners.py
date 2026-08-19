@@ -1,98 +1,186 @@
 import streamlit as st
 import random
+import pandas as pd
+from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
-st.set_page_config(page_title="Universal Calisthenics", page_icon="💪")
+st.set_page_config(page_title="Pro Calisthenics", page_icon="💪")
 
-st.title("💪 Dynamic Calisthenics Engine")
-st.write("Προσαρμοσμένο πρόγραμμα ανάλογα με τον εξοπλισμό, την ενέργεια και τον χρόνο σου!")
+# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 1. Επιλογή Εξοπλισμού
-location = st.selectbox(
-    "📍 Πού θα κάνεις προπόνηση;",
-    ["🏠 Σπίτι (Μόνο Σωματικό Βάρος)", "🌳 Πάρκο Καλισθενικής (Full Equipment)"]
-)
+# --- ΓΛΩΣΣΙΚΗ ΒΑΣΗ (Localization) ---
+i18n = {
+    "EL": {
+        "title": "💪 Pro Calisthenics 1-10",
+        "username": "Όνομα Χρήστη / Athlete Name",
+        "level": "Επίπεδο Δυσκολίας (1-10)",
+        "reps": "Επαναλήψεις ανά σετ",
+        "generate": "🚀 Δημιουργία Προγράμματος",
+        "save": "💾 Αποθήκευση στο Google Sheet",
+        "history": "📜 Ιστορικό Προπονήσεων",
+        "plan": "📋 Πρόγραμμα Προπόνησης",
+        "no_history": "Δεν υπάρχουν καταγεγραμμένες προπονήσεις.",
+        "enter_name": "Παρακαλώ εισάγετε όνομα χρήστη για αποθήκευση.",
+        "success_save": "Η προπόνηση αποθηκεύτηκε επιτυχώς στο Google Sheet!"
+    },
+    "EN": {
+        "title": "💪 Pro Calisthenics 1-10",
+        "username": "Athlete Name / Username",
+        "level": "Difficulty Level (1-10)",
+        "reps": "Reps per set",
+        "generate": "🚀 Generate Routine",
+        "save": "💾 Save to Google Sheet",
+        "history": "📜 Workout History",
+        "plan": "📋 Daily Workout Plan",
+        "no_history": "No workouts recorded yet.",
+        "enter_name": "Please enter a username to save.",
+        "success_save": "Workout successfully saved to Google Sheet!"
+    }
+}
 
-# 2. Inputs Ενέργειας & Χρόνου
-energy = st.slider("Επίπεδο Ενέργειας (1-5)", 1, 5, 3)
-time_available = st.number_input("Διαθέσιμος Χρόνος (λεπτά)", min_value=10, max_value=90, value=30)
+# --- INITIALIZATION ---
+if 'current_routine' not in st.session_state:
+    st.session_state.current_routine = []
 
-if st.button("🚀 Δημιουργία Προγράμματος"):
+# --- SIDEBAR (Language) ---
+lang = st.sidebar.selectbox("Language / Γλώσσα", ["EL", "EN"])
+t = i18n[lang]
 
-    # --- ΔΕΞΑΜΕΝΕΣ ΑΣΚΗΣΕΩΝ ---
+st.title(t["title"])
+
+# --- DATABASE (Τα 10 επίπεδα) ---
+exercises_db = {
+    1: {
+        "Push": ["Wall Push-ups", "Knee Push-ups", "Wall Sit", "Plank Shoulder Taps", "Incline Push-ups (Hands on chair)", "Bear Crawl", "Superman", "Cat-Cow", "Plank", "Bird-Dog"],
+        "Pull": ["Door Rows", "Towel Rows", "Dead Hang", "Wall Angels", "Scapular Pulls", "Y-Raises", "Reverse Snow Angels", "Pole Holds", "Prone Cobra", "Shadow Boxing"],
+        "Legs": ["Bodyweight Squats", "Lunges", "Glute Bridges", "Calf Raises", "Wall Sit", "Side Lunges", "Box Step-ups", "High Knees", "Butt Kicks", "Chair Sit-to-Stand"],
+        "Core": ["Deadbug", "Plank (on knees)", "Bird-Dog", "Leg Raises (easy)", "Crunch", "Toe Touches", "Pelvic Tilt", "Heel Slides", "Bridge Hold", "Cat Stretch"]
+    },
+    2: {
+        "Push": ["Standard Push-ups", "Pike Push-ups (knees)", "Diamond Push-ups (knees)", "Plank to Push-up", "Mountain Climbers", "Inchworms", "Bench Dips", "Elevated Push-ups", "Cobra Push-ups", "Tricep Extensions (wall)"],
+        "Pull": ["Australian Rows (low)", "Scapular Pulls", "Chin-up Negatives", "Pole Assisted Rows", "Towel Pull-ups", "Superman Pulls", "Band Pull-aparts", "Dead Hangs (active)", "Ring Rows (easy)", "Negative Pull-ups"],
+        "Legs": ["Split Squats", "Reverse Lunges", "Sumo Squats", "Jumping Squats (easy)", "Step-ups", "Calf Raises (single leg)", "Glute Bridge (single leg)", "Side Lunge", "Wall Sit", "Frog Squats"],
+        "Core": ["Leg Raises (flat)", "Plank (standard)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold (knees)", "Side Plank", "Flutter Kicks", "Russian Twists", "Reverse Crunches", "V-Ups (easy)"]
+    },
+    3: {
+        "Push": ["Standard Push-ups", "Wide Push-ups", "Pike Push-ups", "Diamond Push-ups", "Explosive Push-ups", "Decline Push-ups", "Clap Push-ups", "Archer Push-ups", "Pseudo Planche Push-ups", "Hindu Push-ups"],
+        "Pull": ["Australian Rows", "Pull-up Negatives", "Chin-up Negatives", "L-sit Hang (knees)", "Scapular Pull-ups", "Superman Pulls", "Pole Climbs", "Dead Hangs", "Ring Rows", "Negative Pull-ups"],
+        "Legs": ["Jump Squats", "Bulgarian Split Squats", "Step-ups", "Pistol Squat Prep", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Frog Jumps", "Box Jumps"],
+        "Core": ["Leg Raises", "Plank", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups", "Reverse Crunches"]
+    },
+    4: {
+        "Push": ["Dips (bench)", "Pike Push-ups", "Archer Push-ups", "Deficit Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups"],
+        "Pull": ["Pull-ups (assisted)", "Chin-ups (assisted)", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Bulgarian Split Squats", "Jumping Lunges", "Sumo Squats", "Step-ups", "Pistol Squat Prep", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps"],
+        "Core": ["Hanging Knee Raises", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups", "Reverse Crunches"]
+    },
+    5: {
+        "Push": ["Dips (parallel bars)", "Pike Push-ups (elevated)", "Archer Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups", "Handstand Hold (wall)"],
+        "Pull": ["Pull-ups", "Chin-ups", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Jumping Lunges", "Bulgarian Split Squats", "Step-ups", "Pistol Squat Prep", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps", "Pistol Squats"],
+        "Core": ["Hanging Leg Raises", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups", "Dragon Flag (prep)"]
+    },
+    6: {
+        "Push": ["Dips", "Handstand Push-up (wall)", "Archer Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups", "Handstand Hold"],
+        "Pull": ["Pull-ups", "Chin-ups", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Step-ups", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps", "Sprints"],
+        "Core": ["Hanging Leg Raises", "Dragon Flag (prep)", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups"]
+    },
+    7: {
+        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups", "Handstand Hold"],
+        "Pull": ["Pull-ups", "Chin-ups", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Step-ups", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps", "Sprints"],
+        "Core": ["Hanging Leg Raises", "Dragon Flag", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups"]
+    },
+    8: {
+        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups", "Handstand Hold"],
+        "Pull": ["Pull-ups", "Chin-ups", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Step-ups", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps", "Sprints"],
+        "Core": ["Hanging Leg Raises", "Dragon Flag", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups"]
+    },
+    9: {
+        "Push": ["Dips", "Handstand Push-up", "Archer Push-ups", "Pseudo Planche", "Diamond Push-ups", "Wide Push-ups", "Explosive Push-ups", "Incline Dips", "Knee Tuck Push-ups", "Handstand Hold"],
+        "Pull": ["Pull-ups", "Chin-ups", "Australian Rows (hard)", "L-sit Hang", "Scapular Shrugs", "Negative Muscle-up", "Pole Rows", "Ring Rows", "Tuck Front Lever", "Chin-up Holds"],
+        "Legs": ["Pistol Squats", "Jumping Lunges", "Bulgarian Split Squats", "Step-ups", "Calf Raises", "Side Lunge", "Glute Bridge", "Wall Sit", "Box Jumps", "Sprints"],
+        "Core": ["Hanging Leg Raises", "Dragon Flag", "Plank (weighted)", "Mountain Climbers", "Bicycle Crunches", "Hollow Body Hold", "Side Plank", "Flutter Kicks", "Russian Twists", "V-Ups"]
+    },
+    10: {
+        "Push": ["Muscle-ups (push phase)", "One Arm Push-ups", "Planche Push-ups", "Handstand Push-ups", "Full Planche Hold", "Aztec Push-ups", "Dips (weighted)", "Archer Pull-ups", "Fingertip Push-ups", "Clap Dips"],
+        "Pull": ["Muscle-ups", "Front Lever Pull-ups", "One Arm Pull-ups", "Dragon Flag Pull-ups", "Weighted Pull-ups", "Archer Pull-ups", "Front Lever Hold", "Back Lever", "Pole Flag", "Human Flag"],
+        "Legs": ["Pistol Squats (weighted)", "Jump Lunges (explosive)", "Sissy Squats", "Shrimp Squats", "Bulgarian Split Squats (weighted)", "Box Jumps (high)", "Calf Raises (weighted)", "Dragon Pistol Squat", "Explosive Box Jumps", "Sprints (full speed)"],
+        "Core": ["Dragon Flags (strict)", "Front Lever Holds", "Toes-to-Bar", "Hanging Windshield Wipers", "Human Flag", "V-Sit", "Planche Holds", "L-Sit (full)", "Russian Twist (weighted)", "Ab Wheel Rollouts"]
+    }
+}
+
+# --- INPUTS ---
+username = st.text_input(t["username"], value="Guest")
+
+col1, col2 = st.columns(2)
+with col1:
+    level = st.slider(t["level"], 1, 10, 1)
+with col2:
+    reps = st.number_input(t["reps"], min_value=1, max_value=100, value=10)
+
+# --- ENGINE ---
+if st.button(t["generate"]):
+    db_level = level if level in exercises_db else max([k for k in exercises_db.keys() if k <= level])
+    current_pool = exercises_db[db_level]
     
-    # Α) ΣΠΙΤΙ (Χωρίς εξοπλισμό)
-    home_db = {
-        "Easy": {
-            "Push": ["Knee Push-ups", "Incline Push-ups (σε καρέκλα)"],
-            "Pull": ["Doorframe Rows", "Towel Door Resistance Rows"],
-            "Legs": ["Bodyweight Squats", "Glute Bridges", "Wall Sits"],
-            "Core": ["Plank (Γόνατα)", "Bird-Dog", "Deadbug"]
-        },
-        "Standard": {
-            "Push": ["Standard Push-ups", "Wide Push-ups", "Pike Push-ups (Easy)"],
-            "Pull": ["Australian Rows (κάτω από τραπέζι)", "Doorframe L-Sits"],
-            "Legs": ["Standard Squats", "Reverse Lunges", "Sumo Squats"],
-            "Core": ["Standard Plank", "Mountain Climbers", "Leg Raises"]
-        },
-        "Hard": {
-            "Push": ["Diamond Push-ups", "Decline Push-ups (πόδια σε καρέκλα)", "Pike Push-ups"],
-            "Pull": ["Table Inverted Rows (Single Arm)", "Doorframe Isometric Holds"],
-            "Legs": ["Jump Squats", "Bulgarian Split Squats", "Lunges with Jump"],
-            "Core": ["Side Plank", "Hollow Body Hold", "V-Ups"]
-        }
-    }
-
-    # Β) ΠΑΡΚΟ (Pull-up bars, Parallel bars, Push-up bars, Monkey bars, Pole)
-    park_db = {
-        "Easy": {
-            "Push": ["Push-up Bars (Standard)", "Parallel Bar Knee Holds", "Incline Push-ups (Low Bar)"],
-            "Pull": ["Australian Rows (High Bar)", "Dead Hang (Pull-up Bar)", "Pole Assisted Rows"],
-            "Legs": ["Bodyweight Squats", "Walking Lunges", "Bench Step-ups"],
-            "Core": ["Plank on Push-up Bars", "Hanging Knee Tucks (Pull-up Bar)", "Pole Knee Raises"]
-        },
-        "Standard": {
-            "Push": ["Push-up Bars (Deep Range)", "Parallel Bar Dips (Assisted/Negative)", "Straight Bar Dips"],
-            "Pull": ["Pull-up Negatives (Pull-up Bar)", "Australian Rows (Mid Bar)", "Monkey Bar Swings / Traversing"],
-            "Legs": ["Standard Squats", "Jumping Lunges", "Bench Box Jumps"],
-            "Core": ["Hanging Leg Raises (Pull-up Bar)", "Parallel Bar Knee Raises", "Pole Flag Hold (Attempt/Prep)"]
-        },
-        "Hard": {
-            "Push": ["Parallel Bar Dips", "Push-up Bars (Pike Dips)", "Single Bar Dips"],
-            "Pull": ["Strict Pull-ups", "Chin-ups", "Monkey Bar Pull-up Traverses", "Pole Climbs"],
-            "Legs": ["Jump Squats", "Bulgarian Split Squats (on Bench)", "Pistol Squat Prep"],
-            "Core": ["Hanging Toes-to-Bar", "Parallel Bar L-Sit", "Pole Human Flag Holds"]
-        }
-    }
-
-    # Επιλογή της σωστής βάσης δεδομένων
-    db = home_db if "Σπίτι" in location else park_db
-
-    # 3. Επιλογή επιπέδου δυσκολίας
-    level = "Easy" if energy <= 2 else ("Standard" if energy == 3 else "Hard")
-    pool = db[level]
-
-    # 4. Επιλογή ασκήσεων (1 Push, 1 Pull, 1 Legs, 1 Core + 1 Bonus)
-    selected_routine = [
-        random.choice(pool["Push"]),
-        random.choice(pool["Pull"]),
-        random.choice(pool["Legs"]),
-        random.choice(pool["Core"])
+    routine = [
+        random.choice(current_pool["Push"]),
+        random.choice(current_pool["Pull"]),
+        random.choice(current_pool["Legs"]),
+        random.choice(current_pool["Core"])
     ]
+    all_ex = current_pool["Push"] + current_pool["Pull"] + current_pool["Legs"] + current_pool["Core"]
+    routine.append(random.choice(all_ex))
+    
+    st.session_state.current_routine = list(dict.fromkeys(routine))
 
-    all_exercises = pool["Push"] + pool["Pull"] + pool["Legs"] + pool["Core"]
-    bonus = random.choice([ex for ex in all_exercises if ex not in selected_routine])
-    selected_routine.append(bonus)
+if st.session_state.current_routine:
+    st.subheader(t["plan"])
+    for ex in st.session_state.current_routine:
+        st.markdown(f"✅ **{ex}** - {reps} reps")
 
-    # 5. Υπολογισμός Σετ βάσει Χρόνου
-    sets = 2 if time_available < 25 else (3 if time_available < 50 else 4)
-    rest = "60-90 sec"
+    # --- SAVE BUTTON (GOOGLE SHEETS) ---
+    if st.button(t["save"]):
+        if not username or username == "Guest":
+            st.warning(t["enter_name"])
+        else:
+            try:
+                # Διαβάζουμε τα δεδομένα από το Sheet
+                existing_data = conn.read(ttl=0)
+            except Exception:
+                existing_data = pd.DataFrame(columns=["Date", "User", "Level", "Reps", "Routine"])
+            
+            # Δημιουργούμε τη νέα εγγραφή
+            new_entry = pd.DataFrame([{
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "User": username,
+                "Level": level,
+                "Reps": reps,
+                "Routine": ", ".join(st.session_state.current_routine)
+            }])
+            
+            # Ενώνουμε και αποθηκεύουμε
+            updated_df = pd.concat([existing_data, new_entry], ignore_index=True)
+            conn.update(data=updated_df)
+            st.success(t["success_save"])
 
-    # Εμφάνιση αποτελεσμάτων
-    st.success(f"📍 **Τοποθεσία:** {location.split(' ')[1]} | ⚡ **Επίπεδο:** {level} | 🔄 **Σετ:** {sets} | ⏱️ **Διάλειμμα:** {rest}")
+# --- ΙΣΤΟΡΙΚΟ (Από το Google Sheet) ---
+st.divider()
+st.subheader(t["history"])
 
-    st.subheader("📋 Το σημερινό σου πλάνο (5 Ασκήσεις):")
-
-    for i, ex in enumerate(selected_routine, 1):
-        st.markdown(f"**{i}. {ex}**")
-
-    st.info("💡 Tip: Αν κάποια άσκηση πάρκου είναι κατειλημμένη, πάτα ξανά το κουμπί για να σου βγάλει εναλλακτική!")
+try:
+    data = conn.read(ttl=0)
+    if not data.empty:
+        # Φιλτράρισμα ανά χρήστη αν το επιλέξει
+        filter_user = st.checkbox("Show only my workouts / Εμφάνιση μόνο των δικών μου")
+        if filter_user and username:
+            data = data[data["User"] == username]
+        st.dataframe(data, use_container_width=True)
+    else:
+        st.write(t["no_history"])
+except Exception:
+    st.write(t["no_history"])
