@@ -1,8 +1,5 @@
 import streamlit as st
 import random
-import pandas as pd
-from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="Pro Calisthenics", page_icon="⚡", layout="centered")
@@ -110,38 +107,23 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS VIA STREAMLIT CONNECTION ---
-GSHEET_URL = "https://docs.google.com/spreadsheets/d/1KeifVGr9lZzCleK_2ZzWbusmhXfL3n9PxyeBvmfLb9I/edit?usp=drivesdk"
-
 # --- ΓΛΩΣΣΙΚΗ ΒΑΣΗ ---
 i18n = {
     "EL": {
         "title": "⚡ Pro Calisthenics Generator",
-        "username": "👤 Όνομα Αθλητή",
         "level": "🎯 Επίπεδο Δυσκολίας (1-10)",
         "reps": "🔢 Επαναλήψεις ανά σετ",
         "generate": "🚀 Δημιουργία Προγράμματος",
-        "save": "💾 Αποθήκευση στο Google Sheet",
-        "history": "📜 Ιστορικό Προπονήσεων",
         "plan": "📋 Το Πρόγραμμά σου",
-        "rest": "⏱️ Προτεινόμενη Ξεκούραση",
-        "no_history": "Δεν υπάρχουν καταγεγραμμένες προπονήσεις.",
-        "enter_name": "Παρακαλώ εισάγετε όνομα χρήστη.",
-        "success_save": "Η προπόνηση αποθηκεύτηκε επιτυχώς!"
+        "rest": "⏱️ Προτεινόμενη Ξεκούραση"
     },
     "EN": {
         "title": "⚡ Pro Calisthenics Generator",
-        "username": "👤 Athlete Name",
         "level": "🎯 Difficulty Level (1-10)",
         "reps": "🔢 Reps per set",
         "generate": "🚀 Generate Routine",
-        "save": "💾 Save to Google Sheet",
-        "history": "📜 Workout History",
         "plan": "📋 Your Routine",
-        "rest": "⏱️ Suggested Rest Time",
-        "no_history": "No workouts recorded yet.",
-        "enter_name": "Please enter a username.",
-        "success_save": "Workout successfully saved!"
+        "rest": "⏱️ Suggested Rest Time"
     }
 }
 
@@ -210,8 +192,6 @@ if 'calculated_time' not in st.session_state:
     st.session_state.calculated_time = {}
 
 # --- INPUTS ---
-username = st.text_input(t["username"], value="Guest")
-
 col1, col2 = st.columns(2)
 with col1:
     level = st.slider(t["level"], 1, 10, 1)
@@ -265,52 +245,7 @@ if st.session_state.current_routine:
             </div>
         """, unsafe_allow_html=True)
 
-    # --- SAVE BUTTON ---
-    if st.button(t["save"]):
-        if not username or username == "Guest":
-            st.warning(t["enter_name"])
-        else:
-            try:
-                conn = st.connection("gsheets", type=GSheetsConnection)
-                
-                try:
-                    existing_df = conn.read(spreadsheet=GSHEET_URL, ttl="0")
-                except Exception:
-                    existing_df = pd.DataFrame(columns=["Date", "User", "Location", "Level", "Reps/Hold", "Rest Time (s)", "Routine"])
-                
-                new_data = pd.DataFrame([{
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "User": username,
-                    "Location": location,
-                    "Level": str(level),
-                    "Reps/Hold": f"{reps} reps / {hold_t}s hold",
-                    "Rest Time (s)": str(rest_t),
-                    "Routine": ", ".join(st.session_state.current_routine)
-                }])
-                
-                updated_df = pd.concat([existing_df, new_data], ignore_index=True)
-                conn.update(spreadsheet=GSHEET_URL, data=updated_df)
-                
-                st.success(t["success_save"])
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-# --- HISTORY ---
-st.divider()
-st.subheader(t["history"])
-
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(spreadsheet=GSHEET_URL, ttl="0")
-    if not df.empty:
-        filter_user = st.checkbox("Show only my workouts / Εμφάνιση μόνο των δικών μου")
-        if filter_user and username:
-            df = df[df["User"] == username]
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.write(t["no_history"])
-except Exception:
-    st.write(t["no_history"])
-
 # --- MEDICAL DISCLAIMER ---
+st.divider()
 st.caption("⚠️ **Αποποίηση Ευθύνης / Disclaimer:** Η εφαρμογή παρέχει προτεινόμενα προγράμματα γυμναστικής για ενημερωτικούς σκοπούς. Συμβουλευτείτε έναν γιατρό ή επαγγελματία γυμναστή πριν ξεκινήσετε οποιοδήποτε πρόγραμμα.")
+    
